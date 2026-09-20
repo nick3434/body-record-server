@@ -1,20 +1,42 @@
 const prisma = require('../db');
 
-// 將字串或數字安全轉成浮點數，空值轉為 null
 function parseOptionalFloat(val) {
   if (val === undefined || val === null || val === '') return null;
   const parsed = parseFloat(val);
   return isNaN(parsed) ? null : parsed;
 }
 
-// 取得所有記錄 (依日期由新至舊排序)
+// 取得記錄 (支援家人權限與資料隔離)
 async function getAllRecords(req, res) {
   try {
+    const currentUserId = req.user.id;
+    const currentUserRole = req.user.role;
+
+    let targetUserId = currentUserId;
+
+    // 如果是管理員，可透過 query 參數查看特定家人的記錄
+    if (currentUserRole === 'ADMIN' && req.query.userId) {
+      if (req.query.userId !== 'all') {
+        targetUserId = parseInt(req.query.userId, 10);
+      } else {
+        targetUserId = null; // 查看全家所有人記錄
+      }
+    }
+
+    const whereClause = targetUserId ? { userId: targetUserId } : {};
+
     const records = await prisma.bodyRecord.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          select: { id: true, name: true, username: true },
+        },
+      },
       orderBy: {
         date: 'desc',
       },
     });
+
     res.json({ success: true, data: records });
   } catch (error) {
     console.error('取得記錄失敗:', error);
@@ -22,10 +44,19 @@ async function getAllRecords(req, res) {
   }
 }
 
-// 取得最新一筆與前一筆記錄 (供儀表板差值計算)
+// 取得最新體態與差值 (依目標用戶隔離)
 async function getLatestStats(req, res) {
   try {
+    const currentUserId = req.user.id;
+    const currentUserRole = req.user.role;
+
+    let targetUserId = currentUserId;
+    if (currentUserRole === 'ADMIN' && req.query.userId && req.query.userId !== 'all') {
+      targetUserId = parseInt(req.query.userId, 10);
+    }
+
     const records = await prisma.bodyRecord.findMany({
+      where: { userId: targetUserId },
       take: 2,
       orderBy: {
         date: 'desc',
@@ -48,9 +79,12 @@ async function getLatestStats(req, res) {
   }
 }
 
-// 新增一筆身體記錄
+// 新增身體記錄
 async function createRecord(req, res) {
   try {
+    const currentUserId = req.user.id;
+    const currentUserRole = req.user.role;
+
     const {
       date,
       height,
@@ -67,9 +101,9 @@ async function createRecord(req, res) {
       calfLeft,
       calfRight,
       notes,
+      userId, // 管理員可代指定
     } = req.body;
 
-    // 身高與體重為必填基礎資料
     const parsedHeight = parseFloat(height);
     const parsedWeight = parseFloat(weight);
 
@@ -78,6 +112,12 @@ async function createRecord(req, res) {
     }
     if (isNaN(parsedWeight) || parsedWeight <= 0) {
       return res.status(400).json({ success: false, message: '請提供有效的體重 (公斤)' });
+    }
+
+    // 若非 ADMIN，只能記錄給自己
+    let assignedUserId = currentUserId;
+    if (currentUserRole === 'ADMIN' && userId) {
+      assignedUserId = parseInt(userId, 10);
     }
 
     const recordDate = date ? new Date(date) : new Date();
@@ -99,6 +139,7 @@ async function createRecord(req, res) {
         calfLeft: parseOptionalFloat(calfLeft),
         calfRight: parseOptionalFloat(calfRight),
         notes: notes ? String(notes).trim() : null,
+        userId: assignedUserId,
       },
     });
 
@@ -109,12 +150,22 @@ async function createRecord(req, res) {
   }
 }
 
-// 更新特定記錄
+// 更新記錄
 async function updateRecord(req, res) {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ success: false, message: '無效的記錄 ID' });
+    }
+
+    const existing = await prisma.bodyRecord.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: '找不到該筆記錄' });
+    }
+
+    // 權限檢查：一般用戶只能修改自己的記錄
+    if (req.user.role !== 'ADMIN' && existing.userId !== req.user.id) {
+      return res.status(403).json({ success: false, message: '您無權修改其他家庭成員的記錄' });
     }
 
     const {
@@ -164,12 +215,22 @@ async function updateRecord(req, res) {
   }
 }
 
-// 刪除特定記錄
+// 刪除記錄
 async function deleteRecord(req, res) {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ success: false, message: '無效的記錄 ID' });
+    }
+
+    const existing = await prisma.bodyRecord.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: '找不到該筆記錄' });
+    }
+
+    // 權限檢查：一般用戶只能刪除自己的記錄
+    if (req.user.role !== 'ADMIN' && existing.userId !== req.user.id) {
+      return res.status(403).json({ success: false, message: '您無權刪除其他家庭成員的記錄' });
     }
 
     await prisma.bodyRecord.delete({

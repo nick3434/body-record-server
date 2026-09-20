@@ -7,8 +7,11 @@ const {
   updateRecord,
   deleteRecord,
 } = require('../controllers/recordController');
+const { authenticate } = require('../middleware/authMiddleware');
 
-// 路由定義
+// 記錄操作全部需要登入身分驗證
+router.use(authenticate);
+
 router.get('/', getAllRecords);
 router.get('/stats', getLatestStats);
 router.post('/', createRecord);

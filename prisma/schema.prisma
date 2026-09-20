@@ -7,28 +7,44 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        Int          @id @default(autoincrement())
+  username  String       @unique
+  password  String       // bcrypt 雜湊密碼
+  name      String       // 家人姓名或稱謂 (如：爸爸、媽媽)
+  role      String       @default("USER") // 'ADMIN' 或 'USER'
+  records   BodyRecord[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
 model BodyRecord {
-  id         Int      @id @default(autoincrement())
-  date       DateTime @default(now())
-  height     Float    // 身高 (cm)
-  weight     Float    // 體重 (kg)
-  bodyFat    Float?   // 體脂肪率 (%)
+  id         Int       @id @default(autoincrement())
+  date       DateTime  @default(now())
+  height     Float     // 身高 (cm)
+  weight     Float     // 體重 (kg)
+  bodyFat    Float?    // 體脂肪率 (%)
   
   // 身體各部位圍度 (統一以 cm 儲存)
-  shoulder   Float?   // 肩寬
-  chest      Float?   // 胸圍
-  waist      Float?   // 腰圍
-  hips       Float?   // 臀圍
-  armLeft    Float?   // 左手臂圍
-  armRight   Float?   // 右手臂圍
-  thighLeft  Float?   // 左大腿圍
-  thighRight Float?   // 右大腿圍
-  calfLeft   Float?   // 左小腿圍
-  calfRight  Float?   // 右小腿圍
+  shoulder   Float?    // 肩寬
+  chest      Float?    // 胸圍
+  waist      Float?    // 腰圍
+  hips       Float?    // 臀圍
+  armLeft    Float?    // 左手臂圍
+  armRight   Float?    // 右手臂圍
+  thighLeft  Float?    // 左大腿圍
+  thighRight Float?    // 右大腿圍
+  calfLeft   Float?    // 左小腿圍
+  calfRight  Float?    // 右小腿圍
 
-  notes      String?  // 備註說明
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  notes      String?   // 備註說明
+  
+  userId     Int?      // 關聯的使用者 ID
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([date])
+  @@index([userId])
 }

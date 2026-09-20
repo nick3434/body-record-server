@@ -1,20 +1,25 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
 const recordRoutes = require('./routes/recordRoutes');
+const { initDefaultAdmin } = require('./controllers/authController');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // 中間件設定
 app.use(cors({
-  origin: '*', // 開發階段允許前端 Vite 5173 存取
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
 
 // API 路由掛載
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/records', recordRoutes);
 
 // 健康檢查
@@ -41,6 +46,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 身體記錄後端伺服器已啟動: http://localhost:${PORT}`);
+  // 自動檢查並初始化預設管理員帳號
+  await initDefaultAdmin();
 });

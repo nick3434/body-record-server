@@ -41,6 +41,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 身體記錄後端伺服器已啟動: http://localhost:${PORT}`);
 });

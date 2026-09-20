@@ -1,0 +1,16 @@
+services:
+  body-record-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: body-record-api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - DATABASE_URL=file:/app/data/body_record.db
+      - NODE_ENV=production
+    volumes:
+      # 將資料庫目錄掛載至宿主機的 ./data，確保容器更新或重啟時 SQLite 資料庫永不遺失
+      - ./data:/app/data
